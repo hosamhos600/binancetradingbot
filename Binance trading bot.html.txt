@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Binance Trading Bot</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://kit.fontawesome.com/a076d05399.js" crossorigin="anonymous"></script>
+    <style>
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        .blink {
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+        .order-book-buy {
+            background: linear-gradient(90deg, rgba(0, 255, 0, 0.1) var(--buy-percentage), transparent var(--buy-percentage));
+        }
+        .order-book-sell {
+            background: linear-gradient(90deg, rgba(255, 0, 0, 0.1) var(--sell-percentage), transparent var(--sell-percentage));
+        }
+        .connection-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .connected {
+            background-color: #10B981;
+        }
+        .disconnected {
+            background-color: #EF4444;
+        }
+        .connecting {
+            background-color: #F59E0B;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-3xl font-bold text-green-400">Binance Trading Bot</h1>
+                <p class="text-gray-400">Automated trading with smart order execution</p>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="bg-gray-800 px-4 py-2 rounded-lg">
+                    <div class="text-sm text-gray-400">Connection</div>
+                    <div class="flex items-center">
+                        <div id="connectionStatus" class="connection-status disconnected"></div>
+                        <span id="connectionText">Disconnected</span>
+                    </div>
+                </div>
+                <button id="settingsBtn" class="bg-gray-800 p-3 rounded-lg hover:bg-gray-700">
+                    <i class="fas fa-cog"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Market Data Section -->
+            <div class="lg:col-span-2 bg-gray-800 rounded-xl p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold">Market Data</h2>
+                    <div class="flex space-x-2">
+                        <div class="relative">
+                            <select id="symbolSelect" class="bg-gray-700 text-white px-4 py-2 rounded-lg appearance-none pr-8">
+                                <option value="BTCUSDT">BTC/USDT</option>
+                                <option value="ETHUSDT">ETH/USDT</option>
+                                <option value="BNBUSDT">BNB/USDT</option>
+                                <option value="SOLUSDT">SOL/USDT</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        <button id="refreshBtn" class="bg-gray-700 hover:bg-gray-600 p-2 rounded-lg">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-gray-700 rounded-lg p-4">
+                        <div class="text-gray-400 text-sm">Current Price</div>
+                        <div id="currentPrice" class="text-2xl font-bold">$0.00</div>
+                        <div id="priceChange" class="text-sm flex items-center">
+                            <span>0.00%</span>
+                            <i class="fas ml-1"></i>
+                        </div>
+                    </div>
+                    <div class="bg-gray-700 rounded-lg p-4">
+                        <div class="text-gray-400 text-sm">Spread</div>
+                        <div id="spread" class="text-2xl font-bold">$0.00</div>
+                        <div id="spreadPercentage" class="text-sm">0.00%</div>
+                    </div>
+                    <div class="bg-gray-700 rounded-lg p-4">
+                        <div class="text-gray-400 text-sm">24h Volume</div>
+                        <div id="volume" class="text-2xl font-bold">0</div>
+                        <div class="text-sm">BTC</div>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold mb-3">Order Book</h3>
+                    <div class="flex justify-between text-gray-400 text-sm mb-2">
+                        <span>Price (USDT)</span>
+                        <span>Amount (BTC)</span>
+                    </div>
+                    <div id="orderBookSell" class="mb-4">
+                        <!-- Sell orders will be inserted here -->
+                    </div>
+                    <div class="text-center my-2 py-2 bg-gray-700 rounded">
+                        <span id="spreadDisplay" class="font-bold">Spread: $0.00 (0.00%)</span>
+                    </div>
+                    <div id="orderBookBuy">
+                        <!-- Buy orders will be inserted here -->
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-lg font-semibold mb-3">Market Orders</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-gray-700 rounded-lg overflow-hidden">
+                            <thead>
+                                <tr class="text-left text-gray-400">
+                                    <th class="px-4 py-2">Time</th>
+                                    <th class="px-4 py-2">Type</th>
+                                    <th class="px-4 py-2">Price</th>
+                                    <th class="px-4 py-2">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="marketOrdersTable">
+                                <!-- Market orders will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trading Section -->
+            <div class="bg-gray-800 rounded-xl p-6">
+                <h2 class="text-xl font-semibold mb-6">Trading Panel</h2>
+                
+                <div class="mb-6">
+                    <div class="flex justify-between mb-2">
+                        <span class="text-gray-400">Balance (USDT)</span>
+                        <span id="usdtBalance" class="font-bold">0.00</span>
+                    </div>
+                    <div class="flex justify-between mb-4">
+                        <span class="text-gray-400">Balance (BTC)</span>
+                        <span id="btcBalance" class="font-bold">0.00</span>
+                    </div>
+                    <div class="bg-gray-700 rounded-lg p-4 mb-4">
+                        <div class="text-gray-400 text-sm mb-1">Order Imbalance</div>
+                        <div class="flex items-center mb-1">
+                            <div class="w-full bg-gray-600 rounded-full h-2.5">
+                                <div id="imbalanceBar" class="bg-green-500 h-2.5 rounded-full" style="width: 50%"></div>
+                            </div>
+                        </div>
+                        <div id="imbalanceText" class="text-sm">Buy: 0% | Sell: 0%</div>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <div class="flex border-b border-gray-700">
+                        <button id="limitTab" class="px-4 py-2 font-medium border-b-2 border-green-500">Limit Order</button>
+                        <button id="marketTab" class="px-4 py-2 font-medium text-gray-400">Market Order</button>
+                    </div>
+
+                    <div id="limitOrderForm" class="mt-4">
+                        <div class="mb-4">
+                            <label class="block text-gray-400 text-sm mb-2">Price (USDT)</label>
+                            <input id="limitPrice" type="number" step="0.01" class="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div class="mb-4">
+                            <label class="block text-gray-400 text-sm mb-2">Amount (BTC)</label>
+                            <input id="limitAmount" type="number" step="0.00001" class="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <button id="buyLimitBtn" class="bg-green-600 hover:bg-green-700 py-3 rounded-lg font-bold">Buy</button>
+                            <button id="sellLimitBtn" class="bg-red-600 hover:bg-red-700 py-3 rounded-lg font-bold">Sell</button>
+                        </div>
+                    </div>
+
+                    <div id="marketOrderForm" class="mt-4 hidden">
+                        <div class="mb-4">
+                            <label class="block text-gray-400 text-sm mb-2">Amount (BTC)</label>
+                            <input id="marketAmount" type="number" step="0.00001" class="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <button id="buyMarketBtn" class="bg-green-600 hover:bg-green-700 py-3 rounded-lg font-bold">Buy</button>
+                            <button id="sellMarketBtn" class="bg-red-600 hover:bg-red-700 py-3 rounded-lg font-bold">Sell</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <h3 class="text-lg font-semibold mb-3">Active Orders</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-gray-700 rounded-lg overflow-hidden">
+                            <thead>
+                                <tr class="text-left text-gray-400">
+                                    <th class="px-4 py-2">Type</th>
+                                    <th class="px-4 py-2">Price</th>
+                                    <th class="px-4 py-2">Amount</th>
+                                    <th class="px-4 py-2">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activeOrdersTable">
+                                <!-- Active orders will be inserted here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-gray-700 rounded-lg p-4">
+                    <h3 class="text-lg font-semibold mb-3">Auto Trading</h3>
+                    <div class="flex items-center mb-4">
+                        <input id="autoTradingToggle" type="checkbox" class="sr-only">
+                        <div class="w-12 h-6 bg-gray-600 rounded-full flex items-center transition duration-300 ease-in-out">
+                            <div class="w-6 h-6 bg-gray-400 rounded-full shadow-md transform transition duration-300 ease-in-out"></div>
+                        </div>
+                        <span class="ml-3 text-gray-400">Enable Auto Trading</span>
+                    </div>
+                    <div class="mb-2">
+                        <label class="block text-gray-400 text-sm mb-1">Trigger Threshold</label>
+                        <input id="triggerThreshold" type="range" min="10" max="50" value="20" class="w-full">
+                        <div class="text-right text-sm"><span id="thresholdValue">20</span>%</div>
+                    </div>
+                    <div class="mb-2">
+                        <label class="block text-gray-400 text-sm mb-1">Order Size</label>
+                        <input id="orderSize" type="range" min="5" max="50" value="25" class="w-full">
+                        <div class="text-right text-sm"><span id="sizeValue">25</span>% of capital</div>
+                    </div>
+                    <button id="testAlarmBtn" class="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-lg mt-2">Test Alarm</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alarm Modal -->
+        <div id="alarmModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+            <div class="bg-gray-800 rounded-xl p-6 max-w-md w-full">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold text-red-500">TRADING ALERT!</h3>
+                    <button id="closeAlarmBtn" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div id="alarmMessage" class="mb-4">
+                    Significant order imbalance detected! The bot has placed an order.
+                </div>
+                <div class="bg-gray-700 rounded-lg p-4 mb-4">
+                    <div class="flex justify-between mb-1">
+                        <span>Order Type:</span>
+                        <span id="alarmOrderType" class="font-bold">BUY</span>
+                    </div>
+                    <div class="flex justify-between mb-1">
+                        <span>Price:</span>
+                        <span id="alarmOrderPrice" class="font-bold">$0.00</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Amount:</span>
+                        <span id="alarmOrderAmount" class="font-bold">0 BTC</span>
+                    </div>
+                </div>
+                <button id="confirmAlarmBtn" class="w-full bg-red-600 hover:bg-red-700 py-3 rounded-lg font-bold">Acknowledge</button>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+            <div class="bg-gray-800 rounded-xl p-6 max-w-md w-full">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold">API Configuration</h3>
+                    <button id="closeSettingsBtn" class="text-gray-400 hover:text-white">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-400 text-sm mb-2">API Key</label>
+                    <input id="apiKeyInput" type="text" class="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Enter your Binance API key">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-400 text-sm mb-2">API Secret</label>
+                    <input id="apiSecretInput" type="password" class="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="Enter your Binance API secret">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-400 text-sm mb-2">Trade Pair</label>
+                    <select id="symbolSelectSettings" class="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-green-500">
+                        <option value="BTCUSDT">BTC/USDT</option>
+                        <option value="ETHUSDT">ETH/USDT</option>
+                        <option value="BNBUSDT">BNB/USDT</option>
+                        <option value="SOLUSDT">SOL/USDT</option>
+                    </select>
+                </div>
+                <div class="flex justify-end space-x-3">
+                    <button id="cancelSettingsBtn" class="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg">Cancel</button>
+                    <button id="saveSettingsBtn" class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg">Save & Connect</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Binance API configuration
+        const binanceConfig = {
+            apiKey: '',
+            apiSecret: '',
+            baseUrl: 'https://api.binance.com',
+            wsUrl: 'wss://stream.binance.com:9443/ws',
+            symbol: 'BTCUSDT',
+            streamId: 1
+        };
+
+        // WebSocket connection
+        let binanceWS = null;
+        let orderBookWS = null;
+        let userDataWS = null;
+
+        // Application state
+        let appState = {
+            connected: false,
+            connecting: false,
+            orderBook: {
+                bids: [],
+                asks: []
+            },
+            marketData: {
+                currentPrice: 0,
+                priceChange: 0,
+                volume: 0,
+                spread: 0,
+                spreadPercentage: 0
+            },
+            marketOrders: [],
+            balances: {
+                USDT: 0,
+                BTC: 0
+            },
+            activeOrders: [],
+            autoTrading: {
+                enabled: false,
+                triggerThreshold: 20,
+                orderSize: 25
+            },
+            alarmTriggered: false
+        };
+
+        // DOM elements
+        const currentPriceEl = document.getElementById('currentPrice');
+        const priceChangeEl = document.getElementById('priceChange');
+        const volumeEl = document.getElementById('volume');
+        const spreadEl = document.getElementById('spread');
+        const spreadPercentageEl = document.getElementById('spreadPercentage');
+        const orderBookBuyEl = document.getElementById('orderBookBuy');
+        const orderBookSellEl = document.getElementById('orderBookSell');
+        const marketOrdersTableEl = document.getElementById('marketOrdersTable');
+        const usdtBalanceEl = document.getElementById('usdtBalance');
+        const btcBalanceEl = document.getElementById('btcBalance');
+        const imbalanceBarEl = document.getElementById('imbalanceBar');
+        const imbalanceTextEl = document.getElementById('imbalanceText');
+        const activeOrdersTableEl = document.getElementById('activeOrdersTable');
+        const alarmModalEl = document.getElementById('alarmModal');
+        const settingsModalEl = document.getElementById('settingsModal');
+        const spreadDisplayEl = document.getElementById('spreadDisplay');
+        const thresholdValueEl = document.getElementById('thresholdValue');
+        const sizeValueEl = document.getElementById('sizeValue');
+        const triggerThresholdEl = document.getElementById('triggerThreshold');
+        const orderSizeEl = document.getElementById('orderSize');
+        const autoTradingToggleEl = document.getElementById('autoTradingToggle');
+        const testAlarmBtnEl = document.getElementById('testAlarmBtn');
+        const connectionStatusEl = document.getElementById('connectionStatus');
+        const connectionTextEl = document.getElementById('connectionText');
+        const apiKeyInputEl = document.getElementById('apiKeyInput');
+        const apiSecretInputEl = document.getElementById('apiSecretInput');
+        const symbolSelectEl = document.getElementById('symbolSelect');
+        const symbolSelectSettingsEl = document.getElementById('symbolSelectSettings');
+
+        // Initialize the UI
+        function initUI() {
+            // Load saved settings from localStorage
+            loadSettings();
+            
+            // Set up event listeners
+            document.getElementById('buyLimitBtn').addEventListener('click', placeLimitBuyOrder);
+            document.getElementById('sellLimitBtn').addEventListener('click', placeLimitSellOrder);
+            document.getElementById('buyMarketBtn').addEventListener('click', placeMarketBuyOrder);
+            document.getElementById('sellMarketBtn').addEventListener('click', placeMarketSellOrder);
+            document.getElementById('limitTab').addEventListener('click', () => toggleOrderForm('limit'));
+            document.getElementById('marketTab').addEventListener('click', () => toggleOrderForm('market'));
+            document.getElementById('settingsBtn').addEventListener('click', showSettingsModal);
+            document.getElementById('closeSettingsBtn').addEventListener('click', () => settingsModalEl.classList.add('hidden'));
+            document.getElementById('closeAlarmBtn').addEventListener('click', () => alarmModalEl.classList.add('hidden'));
+            document.getElementById('confirmAlarmBtn').addEventListener('click', () => {
+                alarmModalEl.classList.add('hidden');
+                appState.alarmTriggered = false;
+            });
+            document.getElementById('refreshBtn').addEventListener('click', refreshData);
+            document.getElementById('testAlarmBtn').addEventListener('click', testAlarm);
+            document.getElementById('cancelSettingsBtn').addEventListener('click', () => settingsModalEl.classList.add('hidden'));
+            document.getElementById('saveSettingsBtn').addEventListener('click', saveSettings);
+            
+            triggerThresholdEl.addEventListener('input', () => {
+                appState.autoTrading.triggerThreshold = parseInt(triggerThresholdEl.value);
+                thresholdValueEl.textContent = appState.autoTrading.triggerThreshold;
+            });
+            
+            orderSizeEl.addEventListener('input', () => {
+                appState.autoTrading.orderSize = parseInt(orderSizeEl.value);
+                sizeValueEl.textContent = appState.autoTrading.orderSize;
+            });
+            
+            autoTradingToggleEl.addEventListener('change', toggleAutoTrading);
+            
+            symbolSelectEl.addEventListener('change', (e) => {
+                binanceConfig.symbol = e.target.value;
+                if (appState.connected) {
+                    disconnectFromBinance();
+                    connectToBinance();
+                }
+            });
+            
+            // Initialize UI with default values
+            updateMarketData();
+            updateOrderBook();
+            updateMarketOrders();
+            updateBalances();
+            updateActiveOrders();
+            updateImbalance();
+            updateConnectionStatus();
+        }
+
+        // Load settings from localStorage
+        function loadSettings() {
+            const savedApiKey = localStorage.getItem('binanceApiKey');
+            const savedApiSecret = localStorage.getItem('binanceApiSecret');
+            const savedSymbol = localStorage.getItem('tradingSymbol');
+            
+            if (savedApiKey) {
+                binanceConfig.apiKey = savedApiKey;
+                apiKeyInputEl.value = savedApiKey;
+            }
+            
+            if (savedApiSecret) {
+                binanceConfig.apiSecret = savedApiSecret;
+                apiSecretInputEl.value = savedApiSecret;
+            }
+            
+            if (savedSymbol) {
+                binanceConfig.symbol = savedSymbol;
+                symbolSelectEl.value = savedSymbol;
+                symbolSelectSettingsEl.value = savedSymbol;
+            }
+            
+            const savedAutoTrading = localStorage.getItem('autoTradingSettings');
+            if (savedAutoTrading) {
+                const settings = JSON.parse(savedAutoTrading);
+                appState.autoTrading = {
+                    enabled: settings.enabled,
+                    triggerThreshold: settings.triggerThreshold,
+                    orderSize: settings.orderSize
+                };
+                
+                triggerThresholdEl.value = settings.triggerThreshold;
+                orderSizeEl.value = settings.orderSize;
+                thresholdValueEl.textContent = settings.triggerThreshold;
+                sizeValueEl.textContent = settings.orderSize;
+                
+                if (settings.enabled) {
+                    autoTradingToggleEl.checked = true;
+                    const toggle = document.querySelector('.bg-gray-600');
+                    const knob = document.querySelector('.bg-gray-400');
+                    toggle.classList.add('bg-green-500');
+                    toggle.classList.remove('bg-gray-600');
+                    knob.classList.add('bg-white');
+                    knob.classList.remove('bg-gray-400');
+                    knob.classList.add('translate-x-6');
+                }
+            }
+        }
+
+        // Save settings to localStorage
+        function saveSettings() {
+            binanceConfig.apiKey = apiKeyInputEl.value.trim();
+            binanceConfig.apiSecret = apiSecretInputEl.value.trim();
+            binanceConfig.symbol = symbolSelectSettingsEl.value;
+            
+            localStorage.setItem('binanceApiKey', binanceConfig.apiKey);
+            localStorage.setItem('binanceApiSecret', binanceConfig.apiSecret);
+            localStorage.setItem('tradingSymbol', binanceConfig.symbol);
+            
+            // Update the main symbol select
+            symbolSelectEl.value = binanceConfig.symbol;
+            
+            // Save auto trading settings
+            const autoTradingSettings = {
+                enabled: appState.autoTrading.enabled,
+                triggerThreshold: appState.autoTrading.triggerThreshold,
+                orderSize: appState.autoTrading.orderSize
+            };
+            localStorage.setItem('autoTradingSettings', JSON.stringify(autoTradingSettings));
+            
+            settingsModalEl.classList.add('hidden');
+            
+            // Connect to Binance if we have API keys
+            if (binanceConfig.apiKey && binanceConfig.apiSecret) {
+                connectToBinance();
+            }
+        }
+
+        // Show settings modal
+        function showSettingsModal() {
+            apiKeyInputEl.value = binanceConfig.apiKey;
+            apiSecretInputEl.value = binanceConfig.apiSecret;
+            symbolSelectSettingsEl.value = binanceConfig.symbol;
+            settingsModalEl.classList.remove('hidden');
+        }
+
+        // Connect to Binance API
+        function connectToBinance() {
+            if (!binanceConfig.apiKey || !binanceConfig.apiSecret) {
+                alert('Please enter your Binance API key and secret in settings');
+                return;
+            }
+            
+            appState.connecting = true;
+            updateConnectionStatus();
+            
+            // Connect to WebSocket for order book and market data
+            connectOrderBookWebSocket();
+            
+            // Connect to user data WebSocket
+            connectUserDataWebSocket();
+            
+            // Fetch initial account data
+            fetchAccountData();
+        }
+
+        // Disconnect from Binance
+        function disconnectFromBinance() {
+            if (orderBookWS) {
+                orderBookWS.close();
+                orderBookWS = null;
+            }
+            
+            if (userDataWS) {
+                userDataWS.close();
+                userDataWS = null;
+            }
+            
+            appState.connected = false;
+            appState.connecting = false;
+            updateConnectionStatus();
+        }
+
+        // Connect to order book WebSocket
+        function connectOrderBookWebSocket() {
+            const symbol = binanceConfig.symbol.toLowerCase();
+            const wsUrl = `${binanceConfig.wsUrl}/${symbol}@depth@100ms`;
+            
+            orderBookWS = new WebSocket(wsUrl);
+            
+            orderBookWS.onopen = () => {
+                console.log('Order book WebSocket connected');
+                appState.connecting = false;
+                appState.connected = true;
+                updateConnectionStatus();
+            };
+            
+            orderBookWS.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                processOrderBookUpdate(data);
+            };
+            
+            orderBookWS.onerror = (error) => {
+                console.error('Order book WebSocket error:', error);
+                appState.connecting = false;
+                appState.connected = false;
+                updateConnectionStatus();
+            };
+            
+            orderBookWS.onclose = () => {
+                console.log('Order book WebSocket disconnected');
+                appState.connected = false;
+                updateConnectionStatus();
+                
+                // Try to reconnect after a delay
+                setTimeout(() => {
+                    if (!appState.connected) {
+                        connectOrderBookWebSocket();
+                    }
+                }, 5000);
+            };
+        }
+
+        // Connect to user data WebSocket
+        function connectUserDataWebSocket() {
+            // First we need to get a listen key
+            fetch(`${binanceConfig.baseUrl}/api/v3/userDataStream`, {
+                method: 'POST',
+                headers: {
+                    'X-MBX-APIKEY': binanceConfig.apiKey
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                const listenKey = data.listenKey;
+                const wsUrl = `${binanceConfig.wsUrl}/${listenKey}`;
+                
+                userDataWS = new WebSocket(wsUrl);
+                
+                userDataWS.onopen = () => {
+                    console.log('User data WebSocket connected');
+                };
+                
+                userDataWS.onmessage = (event) => {
+                    const data = JSON.parse(event.data);
+                    processUserDataUpdate(data);
+                };
+                
+                userDataWS.onerror = (error) => {
+                    console.error('User data WebSocket error:', error);
+                };
+                
+                userDataWS.onclose = () => {
+                    console.log('User data WebSocket disconnected');
+                    
+                    // Try to reconnect after a delay
+                    setTimeout(() => {
+                        connectUserDataWebSocket();
+                    }, 5000);
+                };
+                
+                // Keep the listen key alive
+                setInterval(() => {
+                    fetch(`${binanceConfig.baseUrl}/api/v3/userDataStream`, {
+                        method: 'PUT',
+                        headers: {
+                            'X-MBX-APIKEY': binanceConfig.apiKey
+                        },
+                        body: `listenKey=${listenKey}`
+                    })
+                    .catch(error => console.error('Error keeping listen key alive:', error));
+                }, 30 * 60 * 1000); // Every 30 minutes
+            })
+            .catch(error => {
+                console.error('Error getting listen key:', error);
+                appState.connecting = false;
+                appState.connected = false;
+                updateConnectionStatus();
+            });
+        }
+
+        // Fetch account data (balances, open orders, etc.)
+        function fetchAccountData() {
+            const timestamp = Date.now();
+            const queryString = `timestamp=${timestamp}`;
+            const signature = generateSignature(queryString);
+            
+            fetch(`${binanceConfig.baseUrl}/api/v3/account?${queryString}&signature=${signature}`, {
+                headers: {
+                    'X-MBX-APIKEY': binanceConfig.apiKey
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.balances) {
+                    // Update balances
+                    const usdtBalance = data.balances.find(b => b.asset === 'USDT');
+                    const btcBalance = data.balances.find(b => b.asset === 'BTC');
+                    
+                    if (usdtBalance) {
+                        appState.balances.USDT = parseFloat(usdtBalance.free);
+                    }
+                    
+                    if (btcBalance) {
+                        appState.balances.BTC = parseFloat(btcBalance.free);
+                    }
+                    
+                    updateBalances();
+                }
+                
+                // Fetch open orders
+                fetchOpenOrders();
+            })
+            .catch(error => {
+                console.error('Error fetching account data:', error);
+            });
+        }
+
+        // Fetch open orders
+        function fetchOpenOrders() {
+            const timestamp = Date.now();
+            const queryString = `symbol=${binanceConfig.symbol}&timestamp=${timestamp}`;
+            const signature = generateSignature(queryString);
+            
+            fetch(`${binanceConfig.baseUrl}/api/v3/openOrders?${queryString}&signature=${signature}`, {
+                headers: {
+                    'X-MBX-APIKEY': binanceConfig.apiKey
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                appState.activeOrders = data.map(order => ({
+                    orderId: order.orderId,
+                    type: order.side === 'BUY' ? 'BUY' : 'SELL',
+                    price: parseFloat(order.price),
+                    amount: parseFloat(order.origQty),
+                    originalAmount: parseFloat(order.origQty),
+                    status: order.status,
+                    time: order.time,
+                    isAutoOrder: false
+                }));
+                
+                updateActiveOrders();
+            })
+            .catch(error => {
+                console.error('Error fetching open orders:', error);
+            });
+        }
+
+        // Generate HMAC SHA256 signature for API requests
+        function generateSignature(queryString) {
+            const crypto = window.crypto || window.msCrypto;
+            const encoder = new TextEncoder();
+            const keyData = encoder.encode(binanceConfig.apiSecret);
+            const messageData = encoder.encode(queryString);
+            
+            return crypto.subtle.importKey(
+                'raw',
+                keyData,
+                { name: 'HMAC', hash: 'SHA-256' },
+                false,
+                ['sign']
+            )
+            .then(key => {
+                return crypto.subtle.sign('HMAC', key, messageData);
+            })
+            .then(signature => {
+                const hashArray = Array.from(new Uint8Array(signature));
+                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            });
+        }
+
+        // Process order book updates
+        function processOrderBookUpdate(data) {
+            // Update bids (buy orders)
+            appState.orderBook.bids = data.bids.map(bid => ({
+                price: parseFloat(bid[0]),
+                amount: parseFloat(bid[1])
+            })).sort((a, b) => b.price - a.price); // Sort descending by price
+            
+            // Update asks (sell orders)
+            appState.orderBook.asks = data.asks.map(ask => ({
+                price: parseFloat(ask[0]),
+                amount: parseFloat(ask[1])
+            })).sort((a, b) => a.price - b.price); // Sort ascending by price
+            
+            // Update market data
+            if (appState.orderBook.bids.length > 0 && appState.orderBook.asks.length > 0) {
+                const bestBid = appState.orderBook.bids[0].price;
+                const bestAsk = appState.orderBook.asks[0].price;
+                
+                appState.marketData.currentPrice = (bestBid + bestAsk) / 2;
+                appState.marketData.spread = bestAsk - bestBid;
+                appState.marketData.spreadPercentage = (appState.marketData.spread / appState.marketData.currentPrice) * 100;
+            }
+            
+            // Update UI
+            updateOrderBook();
+            updateMarketData();
+            updateImbalance();
+        }
+
+        // Process user data updates
+        function processUserDataUpdate(data) {
+            switch (data.e) {
+                case 'executionReport':
+                    // Order update
+                    handleOrderUpdate(data);
+                    break;
+                case 'outboundAccountPosition':
+                    // Balance update
+                    handleBalanceUpdate(data);
+                    break;
+            }
+        }
+
+        // Handle order updates
+        function handleOrderUpdate(data) {
+            const order = {
+                orderId: data.i,
+                type: data.S === 'BUY' ? 'BUY' : 'SELL',
+                price: parseFloat(data.p),
+                amount: parseFloat(data.q),
+                executedAmount: parseFloat(data.z),
+                status: data.X,
+                isAutoOrder: data.c && data.c.startsWith('AUTO_')
+            };
+            
+            // Update active orders
+            const orderIndex = appState.activeOrders.findIndex(o => o.orderId === order.orderId);
+            
+            if (orderIndex >= 0) {
+                // Update existing order
+                if (order.status === 'FILLED' || order.status === 'CANCELED' || order.status === 'REJECTED') {
+                    // Remove filled/canceled orders
+                    appState.activeOrders.splice(orderIndex, 1);
+                    
+                    // Update balances if order was filled
+                    if (order.status === 'FILLED') {
+                        if (order.type === 'BUY') {
+                            appState.balances.BTC += order.executedAmount;
+                            appState.balances.USDT -= order.price * order.executedAmount;
+                        } else {
+                            appState.balances.BTC -= order.executedAmount;
+                            appState.balances.USDT += order.price * order.executedAmount;
+                        }
+                        
+                        updateBalances();
+                        
+                        // If this was an auto order, consider placing the opposite order
+                        if (order.isAutoOrder && order.status === 'FILLED') {
+                            considerOppositeOrder(order);
+                        }
+                    }
+                } else {
+                    // Update order details
+                    appState.activeOrders[orderIndex] = {
+                        ...appState.activeOrders[orderIndex],
+                        amount: order.amount,
+                        executedAmount: order.executedAmount,
+                        status: order.status
+                    };
+                }
+            } else if (order.status === 'NEW') {
+                // Add new order
+                appState.activeOrders.push({
+                    ...order,
+                    originalAmount: order.amount
+                });
+            }
+            
+            updateActiveOrders();
+            
+            // Add to market orders if executed
+            if (order.executedAmount > 0) {
+                appState.marketOrders.unshift({
+                    time: new Date(data.T).toLocaleTimeString(),
+                    type: order.type,
+                    price: order.price,
+                    amount: order.executedAmount
+                });
+                
+                // Keep only last 5 market orders for display
+                if (appState.marketOrders.length > 5) {
+                    appState.marketOrders.pop();
+                }
+                
+                updateMarketOrders();
+            }
+        }
+
+        // Handle balance updates
+        function handleBalanceUpdate(data) {
+            data.B.forEach(balance => {
+                if (balance.a === 'USDT') {
+                    appState.balances.USDT = parseFloat(balance.f);
+                } else if (balance.a === 'BTC') {
+                    appState.balances.BTC = parseFloat(balance.f);
+                }
+            });
+            
+            updateBalances();
+        }
+
+        // Consider placing opposite order after an auto order is filled
+        function considerOppositeOrder(order) {
+            if (!appState.autoTrading.enabled) return;
+            
+            if (order.type === 'BUY') {
+                // After buying, consider selling at a higher price
+                const sellPrice = order.price * 1.005; // 0.5% higher
+                const sellAmount = order.executedAmount;
+                
+                placeOrder('SELL', 'LIMIT', sellPrice, sellAmount, true);
+            } else {
+                // After selling, consider buying at a lower price
+                const buyPrice = order.price * 0.995; // 0.5% lower
+                const buyAmount = order.executedAmount;
+                
+                placeOrder('BUY', 'LIMIT', buyPrice, buyAmount, true);
+            }
+        }
+
+        // Update connection status UI
+        function updateConnectionStatus() {
+            if (appState.connected) {
+                connectionStatusEl.className = 'connection-status connected';
+                connectionTextEl.textContent = 'Connected';
+            } else if (appState.connecting) {
+                connectionStatusEl.className = 'connection-status connecting';
+                connectionTextEl.textContent = 'Connecting...';
+            } else {
+                connectionStatusEl.className = 'connection-status disconnected';
+                connectionTextEl.textContent = 'Disconnected';
+            }
+        }
+
+        // Update market data UI
+        function updateMarketData() {
+            currentPriceEl.textContent = `$${appState.marketData.currentPrice.toFixed(2)}`;
+            spreadEl.textContent = `$${appState.marketData.spread.toFixed(2)}`;
+            spreadPercentageEl.textContent = `${appState.marketData.spreadPercentage.toFixed(2)}%`;
+            volumeEl.textContent = appState.marketData.volume.toFixed(2);
+            spreadDisplayEl.textContent = `Spread: $${appState.marketData.spread.toFixed(2)} (${appState.marketData.spreadPercentage.toFixed(2)}%)`;
+            
+            if (appState.marketData.priceChange >= 0) {
+                priceChangeEl.innerHTML = `<span class="text-green-500">+${appState.marketData.priceChange.toFixed(2)}% <i class="fas fa-arrow-up ml-1"></i></span>`;
+            } else {
+                priceChangeEl.innerHTML = `<span class="text-red-500">${appState.marketData.priceChange.toFixed(2)}% <i class="fas fa-arrow-down ml-1"></i></span>`;
+            }
+        }
+
+        // Update order book UI
+        function updateOrderBook() {
+            // Clear existing orders
+            orderBookBuyEl.innerHTML = '';
+            orderBookSellEl.innerHTML = '';
+            
+            // Calculate total amounts for percentage calculations
+            const totalBuyAmount = appState.orderBook.bids.reduce((sum, order) => sum + order.amount, 0);
+            const totalSellAmount = appState.orderBook.asks.reduce((sum, order) => sum + order.amount, 0);
+            
+            // Add sell orders (lowest to highest)
+            appState.orderBook.asks.slice(0, 10).forEach(order => {
+                const percentage = (order.amount / totalSellAmount) * 100;
+                const orderEl = document.createElement('div');
+                orderEl.className = 'flex justify-between py-1 px-2 order-book-sell';
+                orderEl.style.setProperty('--sell-percentage', `${percentage}%`);
+                orderEl.innerHTML = `
+                    <span class="text-red-400">${order.price.toFixed(2)}</span>
+                    <span>${order.amount.toFixed(4)}</span>
+                `;
+                orderBookSellEl.appendChild(orderEl);
+            });
+            
+            // Add buy orders (highest to lowest)
+            appState.orderBook.bids.slice(0, 10).forEach(order => {
+                const percentage = (order.amount / totalBuyAmount) * 100;
+                const orderEl = document.createElement('div');
+                orderEl.className = 'flex justify-between py-1 px-2 order-book-buy';
+                orderEl.style.setProperty('--buy-percentage', `${percentage}%`);
+                orderEl.innerHTML = `
+                    <span class="text-green-400">${order.price.toFixed(2)}</span>
+                    <span>${order.amount.toFixed(4)}</span>
+                `;
+                orderBookBuyEl.appendChild(orderEl);
+            });
+        }
+
+        // Update market orders UI
+        function updateMarketOrders() {
+            marketOrdersTableEl.innerHTML = '';
+            
+            appState.marketOrders.forEach(order => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-600';
+                
+                const typeClass = order.type === 'BUY' ? 'text-green-400' : 'text-red-400';
+                
+                row.innerHTML = `
+                    <td class="px-4 py-2">${order.time}</td>
+                    <td class="px-4 py-2 ${typeClass}">${order.type}</td>
+                    <td class="px-4 py-2">${order.price.toFixed(2)}</td>
+                    <td class="px-4 py-2">${order.amount.toFixed(4)}</td>
+                `;
+                marketOrdersTableEl.appendChild(row);
+            });
+        }
+
+        // Update balances UI
+        function updateBalances() {
+            usdtBalanceEl.textContent = appState.balances.USDT.toFixed(2);
+            btcBalanceEl.textContent = appState.balances.BTC.toFixed(6);
+        }
+
+        // Update active orders UI
+        function updateActiveOrders() {
+            activeOrdersTableEl.innerHTML = '';
+            
+            if (appState.activeOrders.length === 0) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td colspan="4" class="px-4 py-2 text-center text-gray-400">No active orders</td>
+                `;
+                activeOrdersTableEl.appendChild(row);
+                return;
+            }
+            
+            appState.activeOrders.forEach((order, index) => {
+                const row = document.createElement('tr');
+                row.className = 'border-b border-gray-600';
+                
+                const typeClass = order.type === 'BUY' ? 'text-green-400' : 'text-red-400';
+                const remainingAmount = order.amount - (order.executedAmount || 0);
+                
+                row.innerHTML = `
+                    <td class="px-4 py-2 ${typeClass}">${order.type}</td>
+                    <td class="px-4 py-2">${order.price.toFixed(2)}</td>
+                    <td class="px-4 py-2">${remainingAmount.toFixed(4)} / ${order.originalAmount.toFixed(4)}</td>
+                    <td class="px-4 py-2">
+                        <button data-orderid="${order.orderId}" class="cancel-order-btn text-gray-400 hover:text-white">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </td>
+                `;
+                activeOrdersTableEl.appendChild(row);
+            });
+            
+            // Add event listeners to cancel buttons
+            document.querySelectorAll('.cancel-order-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const orderId = this.getAttribute('data-orderid');
+                    cancelOrder(orderId);
+                });
+            });
+        }
+
+        // Update order imbalance UI
+        function updateImbalance() {
+            const topBuy = appState.orderBook.bids[0]?.amount || 0;
+            const topSell = appState.orderBook.asks[0]?.amount || 0;
+            const total = topBuy + topSell;
+            
+            if (total === 0) {
+                imbalanceBarEl.style.width = '50%';
+                imbalanceTextEl.textContent = 'Buy: 0% | Sell: 0%';
+                return;
+            }
+            
+            const buyPercentage = (topBuy / total) * 100;
+            const sellPercentage = (topSell / total) * 100;
+            
+            imbalanceBarEl.style.width = `${buyPercentage}%`;
+            imbalanceTextEl.textContent = `Buy: ${buyPercentage.toFixed(1)}% | Sell: ${sellPercentage.toFixed(1)}%`;
+            
+            // Check for auto trading conditions
+            if (appState.autoTrading.enabled && !appState.alarmTriggered) {
+                if (sellPercentage >= appState.autoTrading.triggerThreshold * 2 && sellPercentage >= buyPercentage * 2) {
+                    // Condition met: place buy order and trigger alarm
+                    const buyAmount = (appState.balances.USDT * (appState.autoTrading.orderSize / 100)) / appState.marketData.currentPrice;
+                    placeOrder('BUY', 'LIMIT', appState.marketData.currentPrice, buyAmount, true);
+                } else if (buyPercentage >= appState.autoTrading.triggerThreshold * 2 && buyPercentage >= sellPercentage * 2) {
+                    // Condition met: place sell order and trigger alarm
+                    const sellAmount = appState.balances.BTC * (appState.autoTrading.orderSize / 100);
+                    placeOrder('SELL', 'LIMIT', appState.marketData.currentPrice, sellAmount, true);
+                }
+            }
+        }
+
+        // Toggle between limit and market order forms
+        function toggleOrderForm(type) {
+            const limitTab = document.getElementById('limitTab');
+            const marketTab = document.getElementById('marketTab');
+            const limitForm = document.getElementById('limitOrderForm');
+            const marketForm = document.getElementById('marketOrderForm');
+            
+            if (type === 'limit') {
+                limitTab.classList.add('border-green-500');
+                limitTab.classList.remove('text-gray-400');
+                marketTab.classList.remove('border-green-500');
+                marketTab.classList.add('text-gray-400');
+                limitForm.classList.remove('hidden');
+                marketForm.classList.add('hidden');
+            } else {
+                marketTab.classList.add('border-green-500');
+                marketTab.classList.remove('text-gray-400');
+                limitTab.classList.remove('border-green-500');
+                limitTab.classList.add('text-gray-400');
+                marketForm.classList.remove('hidden');
+                limitForm.classList.add('hidden');
+            }
+        }
+
+        // Place limit buy order
+        function placeLimitBuyOrder() {
+            const price = parseFloat(document.getElementById('limitPrice').value);
+            const amount = parseFloat(document.getElementById('limitAmount').value);
+            
+            if (isNaN(price) || isNaN(amount) || price <= 0 || amount <= 0) {
+                alert('Please enter valid price and amount');
+                return;
+            }
+            
+            const totalCost = price * amount;
+            if (totalCost > appState.balances.USDT) {
+                alert('Insufficient USDT balance');
+                return;
+            }
+            
+            placeOrder('BUY', 'LIMIT', price, amount, false);
+            
+            // Clear form
+            document.getElementById('limitPrice').value = '';
+            document.getElementById('limitAmount').value = '';
+        }
+
+        // Place limit sell order
+        function placeLimitSellOrder() {
+            const price = parseFloat(document.getElementById('limitPrice').value);
+            const amount = parseFloat(document.getElementById('limitAmount').value);
+            
+            if (isNaN(price) || isNaN(amount) || price <= 0 || amount <= 0) {
+                alert('Please enter valid price and amount');
+                return;
+            }
+            
+            if (amount > appState.balances.BTC) {
+                alert('Insufficient BTC balance');
+                return;
+            }
+            
+            placeOrder('SELL', 'LIMIT', price, amount, false);
+            
+            // Clear form
+            document.getElementById('limitPrice').value = '';
+            document.getElementById('limitAmount').value = '';
+        }
+
+        // Place market buy order
+        function placeMarketBuyOrder() {
+            const amount = parseFloat(document.getElementById('marketAmount').value);
+            
+            if (isNaN(amount) || amount <= 0) {
+                alert('Please enter valid amount');
+                return;
+            }
+            
+            placeOrder('BUY', 'MARKET', null, amount, false);
+            
+            // Clear form
+            document.getElementById('marketAmount').value = '';
+        }
+
+        // Place market sell order
+        function placeMarketSellOrder() {
+            const amount = parseFloat(document.getElementById('marketAmount').value);
+            
+            if (isNaN(amount) || amount <= 0) {
+                alert('Please enter valid amount');
+                return;
+            }
+            
+            placeOrder('SELL', 'MARKET', null, amount, false);
+            
+            // Clear form
+            document.getElementById('marketAmount').value = '';
+        }
+
+        // Place order (generic function)
+        function placeOrder(side, type, price, quantity, isAutoOrder) {
+            if (!appState.connected) {
+                alert('Not connected to Binance. Please check your API keys and connection.');
+                return;
+            }
+            
+            const timestamp = Date.now();
+            let queryString = `symbol=${binanceConfig.symbol}&side=${side}&type=${type}`;
+            
+            if (type === 'LIMIT') {
+                queryString += `&timeInForce=GTC&price=${price}`;
+            }
+            
+            queryString += `&quantity=${quantity}&timestamp=${timestamp}`;
+            
+            if (isAutoOrder) {
+                queryString += `&newClientOrderId=AUTO_${timestamp}`;
+            }
+            
+            generateSignature(queryString)
+                .then(signature => {
+                    return fetch(`${binanceConfig.baseUrl}/api/v3/order?${queryString}&signature=${signature}`, {
+                        method: 'POST',
+                        headers: {
+                            'X-MBX-APIKEY': binanceConfig.apiKey
+                        }
+                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code) {
+                        // Error from Binance
+                        alert(`Error placing order: ${data.msg}`);
+                        return;
+                    }
+                    
+                    // Success - the order update will come through the WebSocket
+                    console.log('Order placed successfully:', data);
+                    
+                    // If this was an auto order, trigger the alarm
+                    if (isAutoOrder) {
+                        triggerAlarm(side, price || appState.marketData.currentPrice, quantity);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error placing order:', error);
+                    alert('Error placing order. Please try again.');
+                });
+        }
+
+        // Cancel order
+        function cancelOrder(orderId) {
+            if (!appState.connected) {
+                alert('Not connected to Binance. Please check your API keys and connection.');
+                return;
+            }
+            
+            const timestamp = Date.now();
+            const queryString = `symbol=${binanceConfig.symbol}&orderId=${orderId}&timestamp=${timestamp}`;
+            
+            generateSignature(queryString)
+                .then(signature => {
+                    return fetch(`${binanceConfig.baseUrl}/api/v3/order?${queryString}&signature=${signature}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'X-MBX-APIKEY': binanceConfig.apiKey
+                        }
+                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.code) {
+                        // Error from Binance
+                        alert(`Error canceling order: ${data.msg}`);
+                        return;
+                    }
+                    
+                    // Success - the order update will come through the WebSocket
+                    console.log('Order canceled successfully:', data);
+                })
+                .catch(error => {
+                    console.error('Error canceling order:', error);
+                    alert('Error canceling order. Please try again.');
+                });
+        }
+
+        // Toggle auto trading
+        function toggleAutoTrading() {
+            appState.autoTrading.enabled = !appState.autoTrading.enabled;
+            const toggle = document.querySelector('.bg-gray-600');
+            const knob = document.querySelector('.bg-gray-400');
+            
+            if (appState.autoTrading.enabled) {
+                toggle.classList.add('bg-green-500');
+                toggle.classList.remove('bg-gray-600');
+                knob.classList.add('bg-white');
+                knob.classList.remove('bg-gray-400');
+                knob.classList.add('translate-x-6');
+            } else {
+                toggle.classList.remove('bg-green-500');
+                toggle.classList.add('bg-gray-600');
+                knob.classList.remove('bg-white');
+                knob.classList.add('bg-gray-400');
+                knob.classList.remove('translate-x-6');
+            }
+            
+            // Save settings
+            const autoTradingSettings = {
+                enabled: appState.autoTrading.enabled,
+                triggerThreshold: appState.autoTrading.triggerThreshold,
+                orderSize: appState.autoTrading.orderSize
+            };
+            localStorage.setItem('autoTradingSettings', JSON.stringify(autoTradingSettings));
+        }
+
+        // Trigger alarm
+        function triggerAlarm(type, price, amount) {
+            appState.alarmTriggered = true;
+            
+            document.getElementById('alarmOrderType').textContent = type;
+            document.getElementById('alarmOrderPrice').textContent = `$${price.toFixed(2)}`;
+            document.getElementById('alarmOrderAmount').textContent = `${amount.toFixed(4)} BTC`;
+            
+            if (type === 'BUY') {
+                document.getElementById('alarmMessage').innerHTML = `
+                    <p>Significant sell pressure detected!</p>
+                    <p class="mt-2">The bot has placed a BUY order for ${amount.toFixed(4)} BTC at $${price.toFixed(2)}.</p>
+                `;
+            } else {
+                document.getElementById('alarmMessage').innerHTML = `
+                    <p>Significant buy pressure detected!</p>
+                    <p class="mt-2">The bot has placed a SELL order for ${amount.toFixed(4)} BTC at $${price.toFixed(2)}.</p>
+                `;
+            }
+            
+            alarmModalEl.classList.remove('hidden');
+            
+            // Play notification sound
+            const audio = new Audio('https://www.soundjay.com/buttons/sounds/button-09.mp3');
+            audio.play().catch(e => console.log('Audio playback failed:', e));
+        }
+
+        // Test alarm
+        function testAlarm() {
+            triggerAlarm('BUY', appState.marketData.currentPrice, 0.01);
+        }
+
+        // Refresh data
+        function refreshData() {
+            if (!appState.connected) {
+                alert('Not connected to Binance. Please check your API keys and connection.');
+                return;
+            }
+            
+            console.log('Refreshing data...');
+            fetchAccountData();
+        }
+
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', initUI);
+    </script>
+</body>
+</html>
